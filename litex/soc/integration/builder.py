@@ -16,6 +16,7 @@ import os
 import subprocess
 import struct
 import shutil
+from string import Template
 
 from litex import get_data_mod
 from litex.build.tools import write_to_file
@@ -124,29 +125,28 @@ class Builder:
     def add_software_library(self, name):
         self.software_libraries.append(name)
 
-    def _get_variables_contents(self):
-        # Helper.
-        variables_contents = []
-        def define(k, v):
-            variables_contents.append("{}={}".format(k, _makefile_escape(v)))
+    def _get_build_variables(self, array_separator=" "):
+        variables = {}
+
+        def define(variable_name, variable_value):
+            variables[variable_name] = variable_value
 
         # Define packages and libraries.
-        define("PACKAGES",     " ".join(name for name, src_dir in self.software_packages))
-        define("PACKAGE_DIRS", " ".join(src_dir for name, src_dir in self.software_packages))
-        define("LIBS",         " ".join(self.software_libraries))
+        define("PACKAGES", array_separator.join(name for name, src_dir in self.software_packages))
+        define("PACKAGE_DIRS", array_separator.join(src_dir for name, src_dir in self.software_packages))
+        define("LIBS", array_separator.join(self.software_libraries))
 
         # Define CPU variables.
         for k, v in export.get_cpu_mak(self.soc.cpu, self.compile_software):
             define(k, v)
 
         # Define SoC/Picolibc/Compiler-RT/Software/Include directories.
-        picolibc_directory    = get_data_mod("software", "picolibc").data_location
+        picolibc_directory = get_data_mod("software", "picolibc").data_location
         compiler_rt_directory = get_data_mod("software", "compiler_rt").data_location
 
-        define("SOC_DIRECTORY",         soc_directory)
-        define("PICOLIBC_DIRECTORY",    picolibc_directory)
+        define("SOC_DIRECTORY", soc_directory)
+        define("PICOLIBC_DIRECTORY", picolibc_directory)
         define("COMPILER_RT_DIRECTORY", compiler_rt_directory)
-        variables_contents.append("export BUILDINC_DIRECTORY")
         define("BUILDINC_DIRECTORY", self.include_dir)
         for name, src_dir in self.software_packages:
             define(name.upper() + "_DIRECTORY", src_dir)
@@ -156,15 +156,57 @@ class Builder:
             assert bios_option in ["TERM_NO_HIST", "TERM_MINI", "TERM_NO_COMPLETE"]
             define(bios_option, "1")
 
-        return "\n".join(variables_contents)
+        return variables
 
-    def _generate_includes(self, with_bios=True):
+    def _get_variables_contents(self):
+        variables = self._get_build_variables()
+
+        makefile_lines = [f"{k}={_makefile_escape(v)}" for k, v in variables.items()]
+        makefile_lines.append("export BUILDINC_DIRECTORY")
+        return "\n".join(makefile_lines)
+
+    def _get_cmake_toolchain_definition(self):
+        cmake_template_path = os.path.join(os.path.abspath(os.path.dirname(__file__)), "cmake")
+
+        with open(os.path.join(cmake_template_path, "cmake_toolchain_template.cmake"), "r") as f:
+            toolchain_template_string = f.read()
+
+        toolchain_template = Template(toolchain_template_string)
+
+        def remove_lib_prefix(lib_name):
+            return lib_name[3:] if lib_name.startswith("lib") else lib_name
+
+        # TODO: Set toolchain path explicitly
+        # TODO: Allow configuration of the linker script to set target memory regions.
+        cmake_variables = {
+            "LITEX": "1",
+            "DEFAULT_LINK_SCRIPT": os.path.join(cmake_template_path, "basic_linker.ld"),
+            "LITEX_PACKAGES_LIBRARY_DIRS": ";".join(
+                os.path.join(self.software_dir, name) for name, src_dir in self.software_packages),
+            "LITEX_LIBRARIES": ";".join(
+                [remove_lib_prefix(lib) for lib in self.software_libraries]
+            )
+        }
+        cmake_variables.update(self._get_build_variables(array_separator=";"))
+
+        cmake_variable_lines = [f"set({k} \"{v}\")" for k, v in cmake_variables.items()]
+        substitution_variables = {
+            "TEMPLATE_VARIABLES": "\n".join(cmake_variable_lines),
+            "TEMPLATE_PATH": cmake_template_path
+        }
+
+        return toolchain_template.safe_substitute(**substitution_variables)
+
+    def get_cmake_toolchain_path(self):
+        return os.path.join(self.generated_dir, "cmake_toolchain.cmake")
+
+    def _generate_includes(self, with_bios=True, with_cmake_toolchain=True):
         # Generate Include/Generated directories.
         _create_dir(self.include_dir)
         _create_dir(self.generated_dir)
 
         # Generate BIOS files when the SoC uses it.
-        if with_bios:
+        if with_bios or with_cmake_toolchain:
             # Generate Variables to variables.mak.
             variables_contents = self._get_variables_contents()
             write_to_file(os.path.join(self.generated_dir, "variables.mak"), variables_contents)
@@ -176,6 +218,10 @@ class Builder:
             # Generate Memory Regions to regions.ld.
             regions_contents = export.get_linker_regions(self.soc.mem_regions)
             write_to_file(os.path.join(self.generated_dir, "regions.ld"), regions_contents)
+
+        if with_cmake_toolchain:
+            cmake_toolchain_contents = self._get_cmake_toolchain_definition()
+            write_to_file(self.get_cmake_toolchain_path(), cmake_toolchain_contents)
 
         # Generate Memory Regions to mem.h.
         mem_contents = export.get_mem_header(self.soc.mem_regions)
