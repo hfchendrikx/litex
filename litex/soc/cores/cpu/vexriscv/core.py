@@ -81,12 +81,15 @@ class VexRiscvTimer(Module, AutoCSR):
 
         # # #
 
-        time = Signal(64)
+        time = Signal(64, reset=0)
         self.sync += time.eq(time + 1)
-        self.sync += If(self._latch.re, self._time.status.eq(time))
+        self.comb += self._time.status[:32].eq(time[32:])
+        self.comb += self._time.status[32:].eq(time[:32])
 
         time_cmp = Signal(64, reset=2**64-1)
-        self.sync += If(self._latch.re, time_cmp.eq(self._time_cmp.storage))
+        self.comb += time_cmp[:32].eq(self._time_cmp.storage[32:])
+        self.comb += time_cmp[32:].eq(self._time_cmp.storage[:32])
+
 
         self.comb += self.interrupt.eq(time >= time_cmp)
 

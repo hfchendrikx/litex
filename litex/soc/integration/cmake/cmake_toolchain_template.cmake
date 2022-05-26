@@ -47,7 +47,7 @@ set(DEPFLAGS "-MD -MP")
 set(COMMON_FLAGS "${DEPFLAGS} ${CPUFLAGS} -Os -g3 -fomit-frame-pointer -Wall -fno-builtin -fstack-protector-strong -flto")
 set(CMAKE_C_FLAGS "${COMMON_FLAGS} -std=gnu99 -Wstrict-prototypes -Wold-style-definition -Wmissing-prototypes" CACHE INTERNAL "C Compiler options")
 set(CMAKE_CXX_FLAGS "${COMMON_FLAGS} -fno-exceptions -fno-rtti -ffreestanding -fno-use-cxa-atexit" CACHE INTERNAL "C++ Compiler options")
-set(CMAKE_EXE_LINKER_FLAGS "-nostdlib -nodefaultlibs  -Wl,--whole-archive -Wl,--gc-sections -Wl,--no-dynamic-linker -Wl,--build-id=none -Wl,-Map=${CMAKE_PROJECT_NAME}.map ${CMAKE_C_FLAGS} -L${BUILDINC_DIRECTORY}" CACHE INTERNAL "Linker options")
+set(CMAKE_EXE_LINKER_FLAGS "-nostdlib -nodefaultlibs  -Wl,--whole-archive -Wl,--no-dynamic-linker -Wl,--build-id=none -Wl,-Map=${CMAKE_PROJECT_NAME}.map ${CMAKE_C_FLAGS} -L${BUILDINC_DIRECTORY}" CACHE INTERNAL "Linker options")
 set(CMAKE_ASM_FLAGS "${CMAKE_C_FLAGS}" CACHE INTERNAL "ASM Compiler options")
 
 set(CMAKE_CXX_ARCHIVE_CREATE "<CMAKE_AR> crs <TARGET> <LINK_FLAGS> <OBJECTS>")

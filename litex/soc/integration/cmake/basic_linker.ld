@@ -13,9 +13,11 @@ SECTIONS
 
         /* Make sure crt0 files come first, and they, and the isr */
         /* don't get disposed of by greedy optimisation */
-        *crt0*(.text)
-        KEEP(*crt0*(.text))
+        *crt0freertos*(.text)
+        KEEP(*crt0freertos*(.text))
         KEEP(*(.text.isr))
+        KEEP(*(.text.external_interrupt_handler))
+        KEEP(*(.text.freertos_risc_v_trap_handler))
 
 		*(.text .stub .text.* .gnu.linkonce.t.*)
 		_etext = .;
