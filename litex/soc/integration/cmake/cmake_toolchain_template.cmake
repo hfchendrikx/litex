@@ -12,7 +12,7 @@ ${TEMPLATE_VARIABLES}
 
 ### ADDITIONAL VARIABLES ###
 set(LITEX_INCLUDE_DIRS
-    ${PICOLIBC_DIRECTORY}/newlib/libc/tinystdio
+    ${PICOLIBC_DIRECTORY}/newlib/libc/stdio
     ${PICOLIBC_DIRECTORY}/newlib/libc/include
     ${LIBBASE_DIRECTORY}
     ${SOC_DIRECTORY}/software/include
